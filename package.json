@@ -1,1 +1,9 @@
-{"name":"ordnung-muss-sein","private":true,"type":"module","scripts":{"test":"node tests/algorithms.mjs","embed":"node tools/embed.mjs"}}
+{
+  "name": "ordnung-muss-sein",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tools/embed.mjs --check && node tests/algorithms.mjs && node tests/runtime.mjs && node tests/ui.mjs",
+    "embed": "node tools/embed.mjs"
+  }
+}

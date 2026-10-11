@@ -1,4 +1,4 @@
-import { algorithms, countEvent } from './algorithms.js';
+import { Experiment } from './player.js';
 import { makeData, arrangements } from './data.js';
 import { BarRenderer, motionPreference } from './renderer.js';
 import { SortAudio } from './audio.js';
@@ -6,7 +6,7 @@ import { info, explainWinner } from './info.js';
 import { runBenchmark } from './benchmark.js';
 const $ = id => document.getElementById(id);
 const audio = new SortAudio();
-let input = [], runs = [], running = false, race = false, lastFrame = 0, budget = 0, lastUI = 0;
+let experiment, input = [], runs = [], running = false, race = false, lastFrame = 0, budget = 0, lastUI = 0;
 let selected = ['insertion', 'merge', 'quick', 'heap'];
 let measurement = null, benchmarkResults = null, generation = 0, inputMax = 1;
 const format = number => number.toLocaleString('de-DE');
@@ -25,27 +25,29 @@ function buildRuns(newData = false) {
   inputMax = Math.max(...input);
   runs.forEach(r => r.renderer.destroy()); $('stages').replaceChildren();
   const ids = race ? selected : [$('algorithm').value];
-  runs = ids.map(id => {
+  experiment = new Experiment(input, ids);
+  runs = experiment.runs.map(run => {
+    const { id, data } = run;
     const section = document.createElement('section'); section.className = 'stage';
     section.innerHTML = `<div class="stage-head"><h3>${info[id].name}</h3><span class="tag">${info[id].short}</span></div><canvas role="img" aria-label="${info[id].name}: ${input.length} Balken, noch unsortiert"></canvas><div class="stage-stats"><span>Vergleiche<strong class="compare-count">0</strong></span><span>Schreiboperationen<strong class="write-count">0</strong></span><span>Gesamt<strong class="total-count">0</strong></span></div><div class="action-note">Bereit für den ersten Vergleich.</div>`;
     $('stages').append(section);
-    const data = input.slice(); const canvas = section.querySelector('canvas');
-    return { id, data, generator: algorithms[id](data), renderer: new BarRenderer(canvas, data), section, comparisons: 0, writes: 0, done: false, event: null };
+    const canvas = section.querySelector('canvas');
+    run.renderer = new BarRenderer(canvas, data); run.section = section;
+    return run;
   });
   $('ranking').replaceChildren(); $('explanation').textContent = ''; $('results-intro').textContent = 'Die Rangliste erscheint nach dem Sortieren. Du kannst auch direkt die Laufzeit messen.';
   $('status').textContent = `Bereit: ${input.length} Balken · ${arrangements[$('arrangement').value]}.`;
   $('stages').classList.toggle('race', race);
+  document.querySelector('.setup').classList.toggle('race-setup', race);
   $('single-selection').hidden = race; $('race-selection').hidden = !race;
   $('single-mode').setAttribute('aria-pressed', !race); $('race-mode').setAttribute('aria-pressed', race);
   updateCheckboxes(); updateUI();
 }
 function advance() {
-  for (const run of runs) {
-    if (run.done) continue;
-    const next = run.generator.next();
-    if (next.done) { run.done = true; run.renderer.finish(performance.now()); continue; }
-    const event = next.value; run.event = event; countEvent(run, event); run.renderer.update(event);
-    audio.play(event, run.data, inputMax);
+  for (const run of experiment.step()) {
+    if (run.done) { run.renderer.finish(performance.now()); continue; }
+    run.renderer.update(run.event);
+    audio.play(run.event, run.data, inputMax);
   }
   if (runs.every(r => r.done)) {
     running = false; audio.finish(); $('status').textContent = 'Fertig sortiert. Vergleiche jetzt den Aufwand in der Rangliste.'; showRanking(); updateUI();
@@ -77,7 +79,7 @@ function updateUI() {
 function showRanking(records = runs) {
   const sorted = [...records].sort((a, b) => a.comparisons + a.writes - b.comparisons - b.writes);
   const max = Math.max(1, ...sorted.map(r => r.comparisons + r.writes));
-  $('results-intro').textContent = `${input.length} Balken · ${arrangements[$('arrangement').value]}. Weniger Operationen = weniger Arbeit in diesem Modell. Ocker: Vergleiche. Terrakotta: Schreiben.`;
+  $('results-intro').textContent = `${input.length} Balken · ${arrangements[$('arrangement').value]}. Weniger Operationen = weniger Arbeit in diesem Modell. Ocker: Vergleiche (V). Terrakotta: Schreiben (S).`;
   let rank = 0, previous = -1;
   $('ranking').innerHTML = sorted.map((r, i) => {
     const total = r.comparisons + r.writes;
@@ -110,7 +112,6 @@ async function measure() {
     const result = await measurement.promise;
     if (version !== generation) return;
     benchmarkResults = result;
-    if (version !== generation) return;
     showRanking(benchmarkResults);
     const fastest = [...benchmarkResults].sort((a, b) => a.median - b.median)[0];
     $('benchmark-status').textContent = `Gemessen: ${info[fastest.id].name} hat hier den kleinsten Laufzeit-Median. Kleine Unterschiede können Messrauschen sein. V = Vergleiche, S = Schreiboperationen.`;
@@ -132,7 +133,7 @@ Object.entries(info).forEach(([id, item]) => {
   const button = document.createElement('button'); button.textContent = item.name; button.dataset.id = id; button.addEventListener('click', () => showInfo(id)); $('info-nav').append(button);
 });
 $('play').addEventListener('click', () => { if (measurement) return; if (runs.every(r => r.done)) buildRuns(); running = !running; budget = 0; $('status').textContent = running ? 'Sortierung läuft.' : 'Pausiert. Du kannst einzelne Schritte ansehen.'; updateUI(); });
-$('step').addEventListener('click', () => { advance(); updateUI(); });
+$('step').addEventListener('click', () => { advance(); updateUI(); if (!experiment.finished) $('status').textContent = runs.map(r => `${info[r.id].name}: ${actionText(r)}`).join(' · '); });
 $('reset').addEventListener('click', () => buildRuns());
 $('shuffle').addEventListener('click', () => buildRuns(true));
 $('size').addEventListener('input', () => { $('size-label').value = $('size').value; });

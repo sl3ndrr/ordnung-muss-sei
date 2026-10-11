@@ -22,7 +22,8 @@ function benchmarkWorker() {
 }
 export function runBenchmark(input, ids, onProgress) {
   const blob = new Blob([algorithmWorkerSource, '\n(', benchmarkWorker.toString(), ')();'], { type: 'text/javascript' });
-  const url = URL.createObjectURL(blob); const worker = new Worker(url);
+  const url = URL.createObjectURL(blob); let worker;
+  try { worker = new Worker(url); } catch (error) { URL.revokeObjectURL(url); throw error; }
   let settled = false;
   const cleanup = () => { worker.terminate(); URL.revokeObjectURL(url); };
   let rejectPromise;

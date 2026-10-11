@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Sortieralgorithmen sehen, hören und fair vergleichen. Ein interaktives Labor für den Informatikunterricht.">
+<meta name="theme-color" content="#f5f2e9"><title>Ordnung muss sein — Das Sortierlabor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23386347' d='M4 27h8v9H4zM16 17h8v19h-8zM28 4h8v32h-8z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#labor">Zum Sortierlabor</a>
+<header class="masthead"><a class="brand" href="#"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>ORDNUNG MUSS SEIN</a><span class="edition">Ein Labor für Informatik</span><a href="#wissen">Das steckt dahinter <span aria-hidden="true">↗</span></a></header>
+<main>
+<section class="intro"><div><p class="eyebrow">SEHEN. HÖREN. VERSTEHEN.</p><h1>Viele Wege.<br>Eine Ordnung.</h1></div><div class="intro-copy"><p>Alle Balken sollen von klein nach groß.<br>Aber welcher Weg ist der beste?</p><p class="subtle">Gib den Algorithmen dieselbe Aufgabe.<br>Beobachte ihre Schritte. Vergleiche ihren Aufwand.</p><a class="text-link" href="#labor">Experiment starten <span aria-hidden="true">↓</span></a></div></section>
+<section id="labor" aria-labelledby="lab-title">
+<div class="section-heading"><h2 id="lab-title"><span class="section-number">01</span> Das Experiment</h2><div class="tabs" role="group" aria-label="Experimentmodus"><button id="single-mode" aria-pressed="true">Einzelansicht</button><button id="race-mode" aria-pressed="false">Wettrennen</button></div></div>
+<div class="setup"><label class="field">Startanordnung<select id="arrangement"><option value="random">Zufällig</option><option value="nearly">Fast sortiert</option><option value="reversed">Umgekehrt sortiert</option><option value="duplicates">Viele Duplikate</option></select></label><label class="field size-field">Balken <output id="size-label" for="size">80</output><input id="size" type="range" min="20" max="1000" step="1" value="80"></label><label class="field" id="single-selection">Algorithmus<select id="algorithm"></select></label><button id="shuffle" class="quiet">↻ Neu mischen</button></div>
+<fieldset id="race-selection" hidden><legend>Wer tritt an? Wähle 2 bis 4 Algorithmen.</legend><div id="contestants"></div></fieldset>
+<div class="legend" aria-label="Bedeutung der Balkenmarkierungen"><span><b class="legend-compare" aria-hidden="true">━</b> Vergleich</span><span><b class="legend-write" aria-hidden="true">═</b> Tausch / Schreiben</span><span><b class="legend-pivot" aria-hidden="true">▼</b> Referenz</span><span><b class="legend-fixed" aria-hidden="true">·</b> Endgültig einsortiert</span></div>
+<div id="stages" class="stages"></div>
+<div class="transport"><div class="playback"><button id="play" class="primary">▶ Start</button><button id="step" class="quiet">Ein Schritt <span aria-hidden="true">→</span></button><button id="reset" class="quiet" aria-label="Mit denselben Daten zurücksetzen">↶ Zurücksetzen</button></div><label class="speed field">Tempo <output id="speed-label" for="speed">450 Schritte/s</output><input id="speed" type="range" min="0" max="100" value="50"></label><div class="sound"><button id="sound" class="quiet" aria-pressed="false">Ton aus</button><label><span class="sr-only">Lautstärke</span><input id="volume" type="range" min="0" max="50" value="18" aria-label="Lautstärke"></label></div></div>
+<p class="experiment-note">Ein Schritt = eine Aktion. Im Wettrennen bekommen alle gleich viele Schritte. <strong>Der Aufwand zählt, nicht das Animationstempo.</strong></p>
+<p id="status" class="status" role="status" aria-live="polite">Bereit. Starte oder gehe einen Schritt weiter.</p>
+</section>
+<section id="ergebnis" class="results" aria-labelledby="results-title"><div class="section-heading"><h2 id="results-title"><span class="section-number">02</span> Was kostet Ordnung?</h2><button id="benchmark" class="quiet">Laufzeit messen <span aria-hidden="true">↗</span></button></div><p id="results-intro">Die Rangliste erscheint nach dem Sortieren. Du kannst auch direkt die Laufzeit messen.</p><div id="ranking"></div><p id="explanation" class="explanation"></p><p id="benchmark-status" role="status" aria-live="polite"></p><details class="method"><summary>So bleibt der Vergleich fair</summary><p>Die Rangliste zählt Vergleiche + Schreiboperationen gleich gewichtet. Ein Tausch schreibt zwei Werte. Auch Schreibzugriffe auf Hilfsfelder zählen; reine Lesezugriffe und Indexberechnungen nicht. Das ist ein erklärbares Modell, keine universelle Geschwindigkeitsformel. Counting Sort kommt ohne Wertvergleiche aus, schreibt aber in Hilfsfelder.</p><p>Der Benchmark misst dieselben JavaScript-Generatoren ohne Zeichnen oder Audio in einem separaten Worker (Hintergrundprozess). Nach einem Aufwärmlauf folgen fünf Messungen; angezeigt wird der Median, der mittlere Wert. Kopieren der Eingabe liegt außerhalb der Messung. Geräte, Browser, Messreihenfolge und Generatoraufwand beeinflussen die Laufzeit. Millisekunden und Operationen können unterschiedliche Gewinner haben.</p></details></section>
+<section id="wissen" class="knowledge" aria-labelledby="knowledge-title"><div class="section-heading"><h2 id="knowledge-title"><span class="section-number">03</span> Hinter den Balken</h2><span class="subtle">Vom Nachbartausch zum Teilen und Herrschen.</span></div><div class="knowledge-layout"><nav id="info-nav" aria-label="Algorithmus erklären"></nav><article id="info-detail"></article></div><details class="glossary"><summary>Vier Begriffe, die dir beim Vergleichen helfen</summary><dl><dt>O-Notation</dt><dd>Beschreibt, wie der Aufwand mit n Werten wächst, nicht die genaue Zeit. O(n) wächst ungefähr mit der Listengröße; O(n²) kann bei doppelter Größe etwa viermal so viel Arbeit bedeuten. log n zählt grob, wie oft man n halbieren kann.</dd><dt>Stabil</dt><dd>Gleich große Werte behalten ihre ursprüngliche Reihenfolge. Das ist z. B. wichtig, wenn Namen zuerst nach Vornamen und dann nach Klassen sortiert werden.</dd><dt>In-place</dt><dd>Arbeitet direkt im vorhandenen Feld mit höchstens konstantem zusätzlichem Datenspeicher. Kleine Verwaltungsdaten, etwa ein Rekursionsstapel, werden in der Tabelle gesondert genannt.</dd><dt>Referenz / Pivot</dt><dd>Ein ausgewählter Wert zum Vergleichen. Bei Quick Sort heißt er Pivot: Kleinere Werte kommen auf seine eine, größere auf seine andere Seite.</dd></dl></details></section>
+<aside class="challenge"><p class="eyebrow">DEIN NÄCHSTES EXPERIMENT</p><h2>Fast fertig. Viel schneller?</h2><p>Wähle „Fast sortiert“ und lass Insertion Sort gegen Selection Sort antreten. Vermute zuerst, wer weniger Arbeit braucht. Was verändert sich bei umgekehrter Reihenfolge?</p><button id="challenge-button" class="text-link">Versuch aufbauen <span aria-hidden="true">↗</span></button></aside>
+</main><footer><span>Ordnung muss sein.</span><span>Ein Sortierlabor. Kein Weg gewinnt immer.</span><a href="#">Zurück nach oben ↑</a></footer>
+<noscript>Für das interaktive Sortierlabor muss JavaScript aktiviert sein.</noscript>
+<!-- EMBED_START -->
+<script type="module">
+if (location.protocol !== 'file:') {
+  import('./js/app.js');
+} else {
+
+// ----- js/algorithms.js -----
+// Ein Ereignis ist genau eine sichtbare Aktion. Ein Tausch schreibt zweimal.
+function compare(i, j, values) {
+  return { type: 'compare', indices: [i, j], values, comparisons: 1, writes: 0 };
+}
+function* swap(a, i, j) {
+  if (i === j) return;
+  [a[i], a[j]] = [a[j], a[i]];
+  yield { type: 'swap', indices: [i, j], comparisons: 0, writes: 2 };
+}
+function fixed(indices) { return { type: 'fixed', indices, comparisons: 0, writes: 0 }; }
+function write(a, i, value) {
+  a[i] = value;
+  return { type: 'write', indices: [i], comparisons: 0, writes: 1 };
+}
+function* bubble(a) {
+  for (let end = a.length - 1; end > 0; end--) {
+    let changed = false;
+    // Benachbarte Werte tauschen: der größte wandert nach rechts.
+    for (let i = 0; i < end; i++) {
+      yield compare(i, i + 1);
+      if (a[i] > a[i + 1]) { yield* swap(a, i, i + 1); changed = true; }
+    }
+    yield fixed([end]);
+    if (!changed) break;
+  }
+  yield fixed(Array.from(a.keys()));
+}
+const algorithms = { bubble };
+function countEvent(totals, event) {
+  totals.comparisons += event.comparisons || 0;
+  totals.writes += event.writes || 0;
+}
+
+// ----- js/data.js -----
+const arrangements = { random: 'Zufällig', nearly: 'Fast sortiert', reversed: 'Umgekehrt', duplicates: 'Viele Duplikate' };
+function randomGenerator(seed) {
+  return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t ^= t + Math.imul(t ^ t >>> 7, 61 | t); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function makeData(size, arrangement, seed = Date.now()) {
+  const random = randomGenerator(seed);
+  const data = Array.from({ length: size }, (_, i) => i + 1);
+  if (arrangement === 'reversed') return data.reverse();
+  if (arrangement === 'nearly') {
+    // Wenige lokale Vertauschungen: fast sortiert, aber nicht ganz.
+    for (let k = 0; k < Math.max(1, Math.floor(size / 12)); k++) {
+      const i = Math.floor(random() * (size - 1)); [data[i], data[i + 1]] = [data[i + 1], data[i]];
+    }
+    return data;
+  }
+  if (arrangement === 'duplicates') for (let i = 0; i < size; i++) data[i] = (1 + Math.floor(random() * 8)) * Math.max(1, Math.floor(size / 8));
+  for (let i = size - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [data[i], data[j]] = [data[j], data[i]]; }
+  return data;
+}
+
+// ----- js/renderer.js -----
+const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+class BarRenderer {
+  constructor(canvas, data) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.shown = Float32Array.from(data);
+    this.fixed = new Set(); this.event = null; this.finishedAt = null; this.lastTime = 0;
+    this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas); this.resize();
+  }
+  resize() {
+    const bounds = this.canvas.getBoundingClientRect(); const dpr = Math.min(devicePixelRatio || 1, 2);
+    this.width = bounds.width; this.height = bounds.height;
+    this.canvas.width = Math.round(bounds.width * dpr); this.canvas.height = Math.round(bounds.height * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  update(event) { this.event = event; if (event.type === 'fixed') event.indices.forEach(i => this.fixed.add(i)); }
+  finish(now) { this.finishedAt = now; }
+  draw(data, max, now, fast = false) {
+    const { ctx, width: w, height: h } = this; if (!w || !h) return;
+    const dt = Math.min(50, now - (this.lastTime || now - 16)); this.lastTime = now;
+    const ease = motionPreference.matches || fast ? 1 : 1 - Math.exp(-dt / 65);
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#dedbd0'; ctx.lineWidth = 1;
+    for (const fraction of [0.25, 0.5, 0.75]) { const y = h - 20 - fraction * (h - 44); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    const step = w / data.length, gap = data.length > 300 ? 0 : Math.min(2, step * 0.2);
+    const active = new Set(this.event?.indices || []);
+    for (let i = 0; i < data.length; i++) {
+      this.shown[i] += (data[i] - this.shown[i]) * ease;
+      const bh = Math.max(2, (this.shown[i] / max) * (h - 44)), x = i * step, y = h - 20 - bh;
+      let color = this.fixed.has(i) ? '#386347' : '#45473c';
+      if (active.has(i)) color = this.event.type === 'compare' ? '#8a650d' : this.event.type === 'pivot' ? '#262820' : '#a6452d';
+      if (this.finishedAt !== null) {
+        const progress = (now - this.finishedAt) / (motionPreference.matches ? 200 : 650);
+        color = '#386347';
+        if (!motionPreference.matches && Math.abs(i / data.length - progress) < 0.06) color = '#8a650d';
+      }
+      ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0.5, step - gap), bh);
+      // Formsignale zusätzlich zur Farbe: Kappe, Querstrich, Dreieck, Fußpunkt.
+      if (active.has(i) && this.event.type !== 'fixed') {
+        ctx.fillRect(x, Math.max(1, y - 5), Math.max(1, step - gap), 2);
+        if (['swap', 'write'].includes(this.event.type)) { ctx.fillStyle = '#f5f2e9'; ctx.fillRect(x, y + 4, Math.max(1, step - gap), 2); }
+        if (this.event.type === 'pivot') { ctx.beginPath(); ctx.moveTo(x, y - 10); ctx.lineTo(x + step / 2, y - 5); ctx.lineTo(x + step, y - 10); ctx.fill(); }
+      }
+      if (this.fixed.has(i)) { ctx.fillStyle = '#386347'; ctx.fillRect(x, h - 13, Math.max(1, step - gap), 2); }
+    }
+  }
+  destroy() { this.observer.disconnect(); }
+}
+
+// ----- js/audio.js -----
+class SortAudio {
+  constructor() { this.enabled = false; this.volume = 0.18; this.voices = 0; this.last = -1; }
+  async toggle() {
+    if (!this.context) {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (!Context) throw new Error('Dieser Browser unterstützt Web Audio nicht.');
+      this.context = new Context();
+      this.master = this.context.createGain(); this.master.gain.value = this.volume;
+      const compressor = this.context.createDynamicsCompressor();
+      this.master.connect(compressor); compressor.connect(this.context.destination);
+    }
+    await this.context.resume(); this.enabled = !this.enabled;
+    this.master.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.context.currentTime, 0.02);
+    return this.enabled;
+  }
+  setVolume(value) { this.volume = value; if (this.master) this.master.gain.setTargetAtTime(this.enabled ? value : 0, this.context.currentTime, 0.02); }
+  tone(height, max, delay = 0, duration = 0.12) {
+    if (!this.enabled || this.voices >= 6) return;
+    const ctx = this.context; const start = ctx.currentTime + delay;
+    const oscillator = ctx.createOscillator(); const gain = ctx.createGain();
+    oscillator.type = 'sine'; oscillator.frequency.value = 160 * Math.pow(2, 2 * Math.min(1, height / max));
+    gain.gain.setValueAtTime(0, start); gain.gain.linearRampToValueAtTime(0.16, start + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    oscillator.connect(gain); gain.connect(this.master); this.voices++;
+    oscillator.onended = () => { this.voices--; oscillator.disconnect(); gain.disconnect(); };
+    oscillator.start(start); oscillator.stop(start + duration + 0.01);
+  }
+  play(event, data, max) {
+    if (!this.enabled || !['compare', 'swap', 'write'].includes(event.type)) return;
+    // Höchstens 25 Tonpaare pro Sekunde, auch bei sehr vielen Schritten.
+    const now = this.context.currentTime; if (now - this.last < 0.04) return; this.last = now;
+    event.indices.slice(0, 2).forEach((i, k) => this.tone(event.values?.[k] ?? data[i], max));
+  }
+  finish() { [0.25, 0.5, 0.75].forEach((v, i) => this.tone(v, 1, i * 0.11, 0.22)); }
+}
+
+// ----- js/info.js -----
+const info = {
+  bubble: { name: 'Bubble Sort', short: 'Nachbarn vergleichen', idea: 'Zwei Nachbarn werden verglichen. Steht der größere links, tauschen sie ihre Plätze. So wandert der größte Wert in jeder Runde ans rechte Ende.', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: true, inplace: true, use: 'Anschaulich zum Einstieg. Bei großen unsortierten Listen sind Merge Sort oder Heap Sort deutlich sparsamer.', code: 'für jedes noch unsortierte Ende:\n  vergleiche alle Nachbarpaare\n  tausche, wenn links größer\n  höre auf, wenn nichts getauscht wurde' }
+};
+
+// ----- js/app.js -----
+const $ = id => document.getElementById(id);
+const audio = new SortAudio();
+let input = [], runs = [], running = false, race = false, lastFrame = 0, budget = 0, lastUI = 0;
+let selected = ['bubble'];
+const format = number => number.toLocaleString('de-DE');
+function rate() { return Math.round(Math.pow(200000, Number($('speed').value) / 100)); }
+function showInfo(id) {
+  const item = info[id];
+  $('info-detail').innerHTML = `<h3>${item.name}</h3><p>${item.idea}</p><dl class="properties"><div><dt>Bester Fall</dt><dd>${item.best}</dd></div><div><dt>Durchschnitt</dt><dd>${item.average}</dd></div><div><dt>Schlechtester Fall</dt><dd>${item.worst}</dd></div><div><dt>Zusatzspeicher</dt><dd>${item.memory}</dd></div><div><dt>Stabil (gleiche bleiben in Reihenfolge)</dt><dd>${item.stable ? 'Ja' : 'Nein'}</dd></div><div><dt>In-place (im vorhandenen Feld)</dt><dd>${item.inplace ? 'Ja' : 'Nein'}</dd></div></dl><div class="info-bottom"><div><h4>Pseudocode · die Idee als Schritte</h4><pre></pre></div><div><h4>Wann lohnt sich das?</h4><p>${item.use}</p></div></div>`;
+  $('info-detail').querySelector('pre').textContent = item.code;
+  $('info-nav').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
+}
+function buildRuns(newData = false) {
+  running = false; budget = 0;
+  if (newData) input = makeData(Number($('size').value), $('arrangement').value);
+  runs.forEach(r => r.renderer.destroy()); $('stages').replaceChildren();
+  const ids = race ? selected : [$('algorithm').value];
+  runs = ids.map(id => {
+    const section = document.createElement('section'); section.className = 'stage';
+    section.innerHTML = `<div class="stage-head"><h3>${info[id].name}</h3><span class="tag">${info[id].short}</span></div><canvas role="img" aria-label="${info[id].name}: ${input.length} Balken, noch unsortiert"></canvas><div class="stage-stats"><span>Vergleiche<strong class="compare-count">0</strong></span><span>Schreiboperationen<strong class="write-count">0</strong></span><span>Gesamt<strong class="total-count">0</strong></span></div><div class="action-note">Bereit für den ersten Vergleich.</div>`;
+    $('stages').append(section);
+    const data = input.slice(); const canvas = section.querySelector('canvas');
+    return { id, data, generator: algorithms[id](data), renderer: new BarRenderer(canvas, data), section, comparisons: 0, writes: 0, done: false, event: null };
+  });
+  $('ranking').replaceChildren(); $('explanation').textContent = ''; $('results-intro').textContent = 'Die Rangliste erscheint nach dem Sortieren. Du kannst auch direkt die Laufzeit messen.';
+  $('status').textContent = `Bereit: ${input.length} Balken · ${arrangements[$('arrangement').value]}.`;
+  $('stages').classList.toggle('race', race); updateUI();
+}
+function advance() {
+  for (const run of runs) {
+    if (run.done) continue;
+    const next = run.generator.next();
+    if (next.done) { run.done = true; run.renderer.finish(performance.now()); continue; }
+    const event = next.value; run.event = event; countEvent(run, event); run.renderer.update(event);
+    audio.play(event, run.data, Math.max(...input));
+  }
+  if (runs.every(r => r.done)) {
+    running = false; audio.finish(); $('status').textContent = 'Fertig sortiert. Vergleiche jetzt den Aufwand in der Rangliste.'; showRanking(); updateUI();
+  }
+}
+function actionText(run) {
+  if (run.done) return '✓ Alle Werte sind endgültig einsortiert.';
+  const event = run.event; if (!event) return 'Bereit für den ersten Vergleich.';
+  const positions = event.indices.map(i => i + 1).slice(0, 2).join(' und ');
+  return `${({ compare: '━ Vergleich', swap: '═ Tausch', write: '═ Schreiben', pivot: '▼ Referenz', fixed: '· Endgültig einsortiert', auxiliary: '═ Hilfsfeld schreiben' })[event.type]}${positions ? ` · Position ${positions}` : ''}`;
+}
+function updateUI() {
+  $('play').textContent = running ? 'Ⅱ Pause' : runs.every(r => r.done) ? '↻ Noch einmal' : '▶ Start';
+  $('step').disabled = running || runs.every(r => r.done);
+  for (const run of runs) {
+    run.section.querySelector('.compare-count').textContent = format(run.comparisons);
+    run.section.querySelector('.write-count').textContent = format(run.writes);
+    run.section.querySelector('.total-count').textContent = format(run.comparisons + run.writes);
+    run.section.querySelector('.action-note').textContent = actionText(run);
+    run.renderer.canvas.setAttribute('aria-label', `${info[run.id].name}: ${actionText(run)} ${format(run.comparisons)} Vergleiche, ${format(run.writes)} Schreiboperationen.`);
+  }
+}
+function showRanking() {
+  const sorted = [...runs].sort((a, b) => a.comparisons + a.writes - b.comparisons - b.writes);
+  const max = Math.max(1, ...sorted.map(r => r.comparisons + r.writes));
+  $('results-intro').textContent = 'Weniger Operationen = weniger Arbeit in diesem Modell. Ocker: Vergleiche. Terrakotta: Schreiboperationen.';
+  $('ranking').innerHTML = sorted.map((r, i) => `<div class="rank-row"><span class="rank">${i + 1}</span><span class="rank-name">${info[r.id].name}</span><div class="rank-track" aria-hidden="true"><span class="comparisons" style="width:${r.comparisons / max * 100}%"></span><span class="writes" style="width:${r.writes / max * 100}%"></span></div><span class="rank-total">${format(r.comparisons + r.writes)}<small>Operationen</small></span><span class="rank-time">—<small>noch nicht gemessen</small></span></div>`).join('');
+}
+function frame(now) {
+  const dt = Math.min(50, now - (lastFrame || now)); lastFrame = now;
+  if (running) {
+    budget = Math.min(12000, budget + rate() * dt / 1000); const end = performance.now() + 5;
+    while (budget >= 1 && running && performance.now() < end) { advance(); budget--; }
+  }
+  const max = Math.max(...input);
+  runs.forEach(r => r.renderer.draw(r.data, max, now, rate() > 1500));
+  if (now - lastUI > 100) { updateUI(); lastUI = now; }
+  requestAnimationFrame(frame);
+}
+Object.entries(info).forEach(([id, item]) => {
+  $('algorithm').add(new Option(item.name, id));
+  const button = document.createElement('button'); button.textContent = item.name; button.dataset.id = id; button.addEventListener('click', () => showInfo(id)); $('info-nav').append(button);
+});
+$('play').addEventListener('click', () => { if (runs.every(r => r.done)) buildRuns(); running = !running; budget = 0; $('status').textContent = running ? 'Sortierung läuft.' : 'Pausiert. Du kannst einzelne Schritte ansehen.'; updateUI(); });
+$('step').addEventListener('click', () => { advance(); updateUI(); });
+$('reset').addEventListener('click', () => buildRuns());
+$('shuffle').addEventListener('click', () => buildRuns(true));
+$('size').addEventListener('input', () => { $('size-label').value = $('size').value; });
+$('size').addEventListener('change', () => buildRuns(true));
+$('arrangement').addEventListener('change', () => buildRuns(true));
+$('algorithm').addEventListener('change', () => { buildRuns(); showInfo($('algorithm').value); });
+$('speed').addEventListener('input', () => { $('speed-label').value = `${format(rate())} Schritte/s`; budget = 0; });
+$('sound').addEventListener('click', async () => { try { const enabled = await audio.toggle(); $('sound').textContent = enabled ? 'Ton an' : 'Ton aus'; $('sound').setAttribute('aria-pressed', enabled); } catch (e) { $('status').textContent = e.message; } });
+$('volume').addEventListener('input', () => audio.setVolume(Number($('volume').value) / 100));
+$('single-mode').addEventListener('click', () => { race = false; buildRuns(); });
+$('race-mode').addEventListener('click', () => { $('status').textContent = 'Der Vergleichsmodus folgt im nächsten Umsetzungsschritt.'; });
+$('benchmark').disabled = true; $('challenge-button').disabled = true;
+showInfo('bubble'); buildRuns(true); $('speed-label').value = `${format(rate())} Schritte/s`; requestAnimationFrame(frame);
+
+}
+</script>
+<!-- EMBED_END -->
+</body></html>

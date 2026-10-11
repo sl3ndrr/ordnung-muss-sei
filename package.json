@@ -1,0 +1,1 @@
+{"name":"ordnung-muss-sein","private":true,"type":"module","scripts":{"test":"node tests/algorithms.mjs","embed":"node tools/embed.mjs"}}

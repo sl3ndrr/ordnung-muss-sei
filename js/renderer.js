@@ -26,7 +26,7 @@ export class BarRenderer {
       this.shown[i] += (data[i] - this.shown[i]) * ease;
       const bh = Math.max(2, (this.shown[i] / max) * (h - 44)), x = i * step, y = h - 20 - bh;
       let color = this.fixed.has(i) ? '#386347' : '#45473c';
-      if (active.has(i)) color = this.event.type === 'compare' ? '#8a650d' : this.event.type === 'pivot' ? '#262820' : '#a6452d';
+      if (active.has(i) && this.event.type !== 'fixed') color = this.event.type === 'compare' ? '#8a650d' : this.event.type === 'pivot' ? '#262820' : '#a6452d';
       if (this.finishedAt !== null) {
         const progress = (now - this.finishedAt) / (motionPreference.matches ? 200 : 650);
         color = '#386347';

@@ -1,6 +1,6 @@
 // Nur für Änderungen am Quellcode: erzeugt den bereits eingecheckten file://-Start.
 import { readFile, writeFile } from 'node:fs/promises';
-const files = ['algorithms', 'data', 'renderer', 'audio', 'info', 'app'];
+const files = ['algorithms', 'data', 'renderer', 'audio', 'info', 'benchmark', 'app'];
 let body = '';
 for (const name of files) {
   let source = await readFile(`js/${name}.js`, 'utf8');

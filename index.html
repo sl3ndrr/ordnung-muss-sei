@@ -61,7 +61,128 @@ function* bubble(a) {
   }
   yield fixed(Array.from(a.keys()));
 }
-const algorithms = { bubble };
+function* selection(a) {
+  for (let start = 0; start < a.length - 1; start++) {
+    let smallest = start;
+    yield { type: 'pivot', indices: [smallest] };
+    // Das Minimum im Rest suchen; danach nur einen Tausch durchführen.
+    for (let j = start + 1; j < a.length; j++) {
+      yield compare(smallest, j);
+      if (a[j] < a[smallest]) {
+        smallest = j; yield { type: 'pivot', indices: [smallest] };
+      }
+    }
+    yield* swap(a, start, smallest); yield fixed([start]);
+  }
+  yield fixed(Array.from(a.keys()));
+}
+function* insertion(a) {
+  for (let i = 1; i < a.length; i++) {
+    const key = a[i]; let j = i - 1;
+    yield { type: 'pivot', indices: [i], values: [key] };
+    // Links ist bereits eine geordnete Teilfolge. Platz für key schaffen.
+    while (j >= 0) {
+      yield compare(j, i, [a[j], key]);
+      if (a[j] <= key) break;
+      yield write(a, j + 1, a[j]); j--;
+    }
+    if (j + 1 !== i) yield write(a, j + 1, key);
+  }
+  // Der geordnete Präfix ist vorher noch nicht endgültig: neue Werte können davor landen.
+  yield fixed(Array.from(a.keys()));
+}
+function* merge(a) {
+  function* part(lo, hi) {
+    if (hi - lo < 2) return;
+    const mid = Math.floor((lo + hi) / 2);
+    yield* part(lo, mid); yield* part(mid, hi);
+    const buffer = []; let left = lo, right = mid;
+    // Zwei geordnete Hälften: jeweils den kleineren Kopf ins Hilfsfeld nehmen.
+    while (left < mid && right < hi) {
+      yield compare(left, right);
+      buffer.push(a[left] <= a[right] ? a[left++] : a[right++]);
+      yield { type: 'auxiliary', indices: [left - 1, right - 1].filter(i => i >= lo), writes: 1 };
+    }
+    while (left < mid) { buffer.push(a[left]); yield { type: 'auxiliary', indices: [left++], writes: 1 }; }
+    while (right < hi) { buffer.push(a[right]); yield { type: 'auxiliary', indices: [right++], writes: 1 }; }
+    for (let k = 0; k < buffer.length; k++) yield write(a, lo + k, buffer[k]);
+  }
+  yield* part(0, a.length); yield fixed(Array.from(a.keys()));
+}
+function* quick(a) {
+  function* part(lo, hi) {
+    if (lo > hi) return;
+    if (lo === hi) { yield fixed([lo]); return; }
+    const pivotIndex = Math.floor((lo + hi) / 2), pivot = a[pivotIndex];
+    yield { type: 'pivot', indices: [pivotIndex], values: [pivot] };
+    let less = lo, scan = lo, greater = hi;
+    // Drei Bereiche: kleiner, gleich, größer. Gleiche Werte werden nicht erneut sortiert.
+    while (scan <= greater) {
+      yield compare(scan, pivotIndex, [a[scan], pivot]);
+      if (a[scan] < pivot) { yield* swap(a, less++, scan++); }
+      else {
+        yield compare(scan, pivotIndex, [a[scan], pivot]);
+        if (a[scan] > pivot) { yield* swap(a, scan, greater--); }
+        else scan++;
+      }
+    }
+    yield fixed(Array.from({ length: greater - less + 1 }, (_, i) => less + i));
+    yield* part(lo, less - 1); yield* part(greater + 1, hi);
+  }
+  yield* part(0, a.length - 1);
+}
+function* heap(a) {
+  function* sift(root, end) {
+    // Heap = Baum im Feld: Eltern sind mindestens so groß wie ihre Kinder.
+    while (root * 2 + 1 < end) {
+      let child = root * 2 + 1;
+      if (child + 1 < end) { yield compare(child, child + 1); if (a[child] < a[child + 1]) child++; }
+      yield compare(root, child);
+      if (a[root] >= a[child]) return;
+      yield* swap(a, root, child); root = child;
+    }
+  }
+  for (let i = Math.floor(a.length / 2) - 1; i >= 0; i--) yield* sift(i, a.length);
+  for (let end = a.length - 1; end > 0; end--) {
+    yield* swap(a, 0, end); yield fixed([end]); yield* sift(0, end);
+  }
+  yield fixed(Array.from(a.keys()));
+}
+function* shell(a) {
+  let gap = 1;
+  while (gap < a.length / 3) gap = 3 * gap + 1;
+  // Insertion Sort mit großen Abständen; der letzte Abstand ist immer eins.
+  for (; gap >= 1; gap = Math.floor(gap / 3)) {
+    for (let i = gap; i < a.length; i++) {
+      const key = a[i]; let j = i;
+      yield { type: 'pivot', indices: [i], values: [key] };
+      while (j >= gap) {
+        yield compare(j - gap, i, [a[j - gap], key]);
+        if (a[j - gap] <= key) break;
+        yield write(a, j, a[j - gap]); j -= gap;
+      }
+      if (j !== i) yield write(a, j, key);
+    }
+  }
+  yield fixed(Array.from(a.keys()));
+}
+function* counting(a) {
+  if (!a.length) return;
+  const max = Math.max(...a), counts = new Array(max + 1), output = new Array(a.length);
+  // k mögliche Höhen: erst Häufigkeiten, dann die Endposition jeder Höhe berechnen.
+  for (let v = 0; v <= max; v++) { counts[v] = 0; yield { type: 'auxiliary', indices: [], writes: 1 }; }
+  for (let i = 0; i < a.length; i++) { counts[a[i]]++; yield { type: 'auxiliary', indices: [i], writes: 1 }; }
+  for (let v = 1; v <= max; v++) { counts[v] += counts[v - 1]; yield { type: 'auxiliary', indices: [], writes: 1 }; }
+  // Von rechts einfügen erhält die Reihenfolge gleich großer Werte (stabil).
+  for (let i = a.length - 1; i >= 0; i--) {
+    output[--counts[a[i]]] = a[i]; yield { type: 'auxiliary', indices: [i], writes: 2 };
+  }
+  for (let i = 0; i < a.length; i++) { yield write(a, i, output[i]); yield fixed([i]); }
+}
+const algorithms = { bubble, selection, insertion, merge, quick, heap, shell, counting };
+// Ein Worker erhält dieselben Funktionen, auch beim Start über file://.
+const algorithmWorkerSource = [compare, swap, fixed, write, ...Object.values(algorithms)]
+  .map(fn => fn.toString()).join('\n') + '\nconst algorithms = { bubble, selection, insertion, merge, quick, heap, shell, counting };';
 function countEvent(totals, event) {
   totals.comparisons += event.comparisons || 0;
   totals.writes += event.writes || 0;
@@ -117,7 +238,7 @@ class BarRenderer {
       this.shown[i] += (data[i] - this.shown[i]) * ease;
       const bh = Math.max(2, (this.shown[i] / max) * (h - 44)), x = i * step, y = h - 20 - bh;
       let color = this.fixed.has(i) ? '#386347' : '#45473c';
-      if (active.has(i)) color = this.event.type === 'compare' ? '#8a650d' : this.event.type === 'pivot' ? '#262820' : '#a6452d';
+      if (active.has(i) && this.event.type !== 'fixed') color = this.event.type === 'compare' ? '#8a650d' : this.event.type === 'pivot' ? '#262820' : '#a6452d';
       if (this.finishedAt !== null) {
         const progress = (now - this.finishedAt) / (motionPreference.matches ? 200 : 650);
         color = '#386347';
@@ -175,14 +296,78 @@ class SortAudio {
 
 // ----- js/info.js -----
 const info = {
-  bubble: { name: 'Bubble Sort', short: 'Nachbarn vergleichen', idea: 'Zwei Nachbarn werden verglichen. Steht der größere links, tauschen sie ihre Plätze. So wandert der größte Wert in jeder Runde ans rechte Ende.', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: true, inplace: true, use: 'Anschaulich zum Einstieg. Bei großen unsortierten Listen sind Merge Sort oder Heap Sort deutlich sparsamer.', code: 'für jedes noch unsortierte Ende:\n  vergleiche alle Nachbarpaare\n  tausche, wenn links größer\n  höre auf, wenn nichts getauscht wurde' }
+  bubble: { name: 'Bubble Sort', short: 'Nachbarn vergleichen', idea: 'Zwei Nachbarn werden verglichen. Steht der größere links, tauschen sie ihre Plätze. So wandert der größte Wert in jeder Runde ans rechte Ende.', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: true, inplace: true, use: 'Anschaulich zum Einstieg. Auf sortierten Daten endet diese Variante früh; sonst ist sie wegen vieler Tausche meist aufwendiger als Insertion Sort.', code: 'für jedes noch unsortierte Ende:\n  vergleiche alle Nachbarpaare\n  tausche, wenn links größer\n  höre auf, wenn nichts getauscht wurde' },
+  selection: { name: 'Selection Sort', short: 'Das Minimum suchen', idea: 'Suche den kleinsten Wert im noch unsortierten Teil. Tausche ihn an den Anfang dieses Teils. Wiederhole das, bis jeder Platz besetzt ist.', best: 'O(n²)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: false, inplace: true, use: 'Braucht nur wenige Tausche, aber immer viele Vergleiche. Sinnvoll, wenn Schreiben teuer ist; fast sortierte Daten helfen ihm kaum, anders als Insertion Sort.', code: 'für jede Position i:\n  suche den kleinsten Wert ab i\n  tausche ihn mit dem Wert an i\n  markiere i als endgültig' },
+  insertion: { name: 'Insertion Sort', short: 'Die richtige Lücke finden', idea: 'Wie beim Ordnen von Spielkarten nimmst du einen neuen Wert und schiebst ihn an die passende Stelle. Größere Werte rücken nach rechts. Der linke Teil ist dabei immer geordnet, aber noch nicht endgültig.', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: true, inplace: true, use: 'Sehr gut für kleine oder fast sortierte Listen. Umgekehrte Reihenfolge erzwingt viele Verschiebungen; dort sind Merge Sort und Heap Sort verlässlicher.', code: 'für jeden Wert ab Position 2:\n  merke den Wert\n  schiebe größere linke Nachbarn nach rechts\n  setze den Wert in die entstandene Lücke' },
+  merge: { name: 'Merge Sort', short: 'Teilen und zusammenführen', idea: 'Halbiere die Liste immer weiter, bis einzelne Werte übrig bleiben. Führe dann jeweils zwei geordnete Teile zusammen, indem du den kleineren vorderen Wert auswählst. Ein Hilfsfeld bewahrt die Werte beim Zusammenführen auf.', best: 'O(n log n)', average: 'O(n log n)', worst: 'O(n log n)', memory: 'O(n)', stable: true, inplace: false, use: 'Gleichmäßig gut für große Listen und wenn gleiche Werte ihre Reihenfolge behalten sollen. Benötigt mehr Zusatzspeicher und Hilfsfeld-Schreibzugriffe als Heap Sort.', code: 'wenn Teil kleiner als 2: fertig\n  sortiere linke und rechte Hälfte\n  nimm jeweils den kleineren vorderen Wert\n  schreibe das Hilfsfeld zurück' },
+  quick: { name: 'Quick Sort', short: 'Um eine Referenz aufteilen', idea: 'Wähle einen Referenzwert, das Pivot. Teile die Liste in kleinere, gleiche und größere Werte auf. Sortiere danach die kleineren und größeren Teile; gleiche Werte sind bereits am richtigen Platz.', best: 'O(n log n)', average: 'O(n log n)', worst: 'O(n²)', memory: 'Ø O(log n), max. O(n)', stable: false, inplace: true, use: 'Oft schnell auf gemischten Daten. Unsere Drei-Wege-Variante hilft bei Duplikaten (nur gleiche Werte: O(n)); ungünstige Pivots können sie ausbremsen. Heap Sort garantiert O(n log n).', code: 'wähle mittleren Wert als Pivot\n  teile in kleiner | gleich | größer\n  sortiere den kleineren Teil\n  sortiere den größeren Teil' },
+  heap: { name: 'Heap Sort', short: 'Das Größte nach oben', idea: 'Ordne die Werte wie einen Baum, bei dem Eltern mindestens so groß wie ihre Kinder sind: einen Heap. Der größte Wert steht dann vorn und kommt ans Ende. Stelle die Baumordnung im Rest wieder her und wiederhole das.', best: 'O(n)*', average: 'O(n log n)', worst: 'O(n log n)', memory: 'O(1)', stable: false, inplace: true, use: 'Zuverlässig ohne großes Hilfsfeld und ohne quadratischen schlechtesten Fall. Die weiten Sprünge sind schwerer zu verfolgen als bei Insertion Sort. *Diese Variante ist bei lauter gleichen Werten linear; bei verschiedenen Werten auch im besten Fall O(n log n).', code: 'baue einen Heap mit größtem Wert vorn\n  tausche den vorderen Wert ans Ende\n  verkleinere den Heap\n  lasse den neuen Kopf an die passende Stelle sinken' },
+  shell: { name: 'Shell Sort', short: 'Erst weit, dann nah', idea: 'Sortiere zunächst Werte, die weit auseinander stehen, wie bei Insertion Sort. Verkleinere den Abstand nach und nach. Beim letzten Abstand von eins sind viele Werte schon nahe an ihrem Ziel.', best: 'O(n log n)', average: 'Abhängig von Daten & Abständen', worst: 'O(n√n)', memory: 'O(1)', stable: false, inplace: true, use: 'Ein kompakter Mittelweg zwischen Insertion Sort und aufwendigeren Verfahren. Hier nutzen wir Knuth-Abstände 1, 4, 13, 40, …; für sie ist keine einfache allgemeine Durchschnittsformel bekannt.', code: 'für Abstände … 40, 13, 4, 1:\n  für jeden Wert mit diesem Abstand:\n    schiebe größere Vorgänger weiter\n    setze den Wert in die Lücke' },
+  counting: { name: 'Counting Sort', short: 'Häufigkeiten zählen', idea: 'Zähle, wie oft jede ganze Höhe vorkommt. Berechne daraus die Zielplätze und setze die Werte dort ein. Es werden keine zwei Balkenhöhen miteinander verglichen; stattdessen wird mit Häufigkeiten gerechnet.', best: 'O(n + k)', average: 'O(n + k)', worst: 'O(n + k)', memory: 'O(n + k)', stable: true, inplace: false, use: 'Gut für ganze Zahlen in einem kleinen Wertebereich: k ist die Zahl möglicher Höhen. Bei riesigen Wertebereichen oder beliebigen Texten sind vergleichsbasierte Verfahren wie Merge Sort sinnvoller.', code: 'zähle jede Höhe in einem Hilfsfeld\n  berechne aus den Summen die Zielplätze\n  setze Werte von rechts ins Ausgabefeld\n  schreibe das Ausgabefeld zurück' }
 };
+function explainWinner(id, arrangement, count) {
+  const reasons = {
+    bubble: 'Der frühe Abbruch spart weitere Runden, wenn kein Nachbarpaar mehr getauscht werden muss.',
+    selection: 'Selection Sort tauscht höchstens einmal pro Zielposition. Seine vielen Vergleiche bleiben aber auch bei geordneten Daten bestehen.',
+    insertion: arrangement === 'nearly' ? 'Die Werte liegen schon fast richtig. Insertion Sort prüft meist nur den direkten Vorgänger und verschiebt nur wenige Werte.' : 'Auf dieser konkreten Eingabe braucht Insertion Sort nur wenige Verschiebungen. Mit mehr Unordnung kann der Aufwand stark wachsen.',
+    merge: 'Merge Sort halbiert die Aufgabe regelmäßig. So bleibt die Zahl der Vergleiche überschaubar, auch wenn die Eingabe ungünstig angeordnet ist.',
+    quick: arrangement === 'duplicates' ? 'Die Drei-Wege-Aufteilung legt gleiche Werte sofort zusammen. Diese Gruppe muss Quick Sort danach nicht weiter sortieren.' : 'Die gewählten Pivots teilen diese Eingabe günstig auf. Kleinere Teilaufgaben brauchen insgesamt wenig Arbeit; das ist nicht für jede Eingabe garantiert.',
+    heap: 'Heap Sort holt den größten Restwert gezielt aus seinem Baum. Die Arbeit wächst zuverlässig, ohne den ganzen Rest immer wieder zu durchsuchen.',
+    shell: 'Große Abstände bringen weit entfernte Werte früh näher an ihr Ziel. Der abschließende Insertion-Durchlauf muss dadurch weniger verschieben.',
+    counting: 'Die Balkenhöhen sind kleine ganze Zahlen. Counting Sort kann sie zählen statt paarweise vergleichen; seine Hilfsfeld-Schreibzugriffe zählen trotzdem mit.'
+  };
+  return count > 1 ? `${info[id].name} hat hier den kleinsten gezählten Aufwand. ${reasons[id]} Ändere die Startanordnung und prüfe, ob das so bleibt.` : `${reasons[id]} Für eine Aussage über andere Verfahren starte ein Wettrennen.`;
+}
+
+// ----- js/benchmark.js -----
+function benchmarkWorker() {
+  self.onmessage = ({ data: { input, ids } }) => {
+    try {
+      const results = [];
+      // Rundlauf statt fünf identischer Läufe direkt hintereinander.
+      for (let round = -1; round < 5; round++) {
+        for (const id of ids) {
+          const a = input.slice(); let comparisons = 0, writes = 0;
+          const start = performance.now();
+          for (const event of algorithms[id](a)) { comparisons += event.comparisons || 0; writes += event.writes || 0; }
+          const elapsed = performance.now() - start;
+          if (round === -1) results.push({ id, times: [], comparisons, writes });
+          else results.find(r => r.id === id).times.push(elapsed);
+        }
+        self.postMessage({ progress: round + 2 });
+      }
+      results.forEach(r => { r.times.sort((a, b) => a - b); r.median = r.times[2]; });
+      self.postMessage({ results });
+    } catch (error) { self.postMessage({ error: error.message }); }
+  };
+}
+function runBenchmark(input, ids, onProgress) {
+  const blob = new Blob([algorithmWorkerSource, '\n(', benchmarkWorker.toString(), ')();'], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob); const worker = new Worker(url);
+  let settled = false;
+  const cleanup = () => { worker.terminate(); URL.revokeObjectURL(url); };
+  let rejectPromise;
+  const promise = new Promise((resolve, reject) => {
+    rejectPromise = reject;
+    worker.onmessage = ({ data }) => {
+      if (data.progress) onProgress(data.progress);
+      if (data.results || data.error) {
+        settled = true; cleanup();
+        data.error ? reject(new Error(data.error)) : resolve(data.results);
+      }
+    };
+    worker.onerror = () => { settled = true; cleanup(); reject(new Error('Der Benchmark-Worker konnte nicht starten. Bitte nutze einen aktuellen Browser.')); };
+    worker.postMessage({ input, ids });
+  });
+  return { promise, cancel: () => { if (!settled) { settled = true; cleanup(); rejectPromise(new Error('Messung abgebrochen.')); } } };
+}
 
 // ----- js/app.js -----
 const $ = id => document.getElementById(id);
 const audio = new SortAudio();
 let input = [], runs = [], running = false, race = false, lastFrame = 0, budget = 0, lastUI = 0;
-let selected = ['bubble'];
+let selected = ['insertion', 'merge', 'quick', 'heap'];
+let measurement = null, benchmarkResults = null, generation = 0, inputMax = 1;
 const format = number => number.toLocaleString('de-DE');
 function rate() { return Math.round(Math.pow(200000, Number($('speed').value) / 100)); }
 function showInfo(id) {
@@ -192,8 +377,11 @@ function showInfo(id) {
   $('info-nav').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
 }
 function buildRuns(newData = false) {
-  running = false; budget = 0;
+  running = false; budget = 0; generation++; benchmarkResults = null;
+  if (measurement) { measurement.cancel(); measurement = null; }
+  $('benchmark').textContent = 'Laufzeit messen ↗'; $('benchmark-status').textContent = '';
   if (newData) input = makeData(Number($('size').value), $('arrangement').value);
+  inputMax = Math.max(...input);
   runs.forEach(r => r.renderer.destroy()); $('stages').replaceChildren();
   const ids = race ? selected : [$('algorithm').value];
   runs = ids.map(id => {
@@ -205,7 +393,10 @@ function buildRuns(newData = false) {
   });
   $('ranking').replaceChildren(); $('explanation').textContent = ''; $('results-intro').textContent = 'Die Rangliste erscheint nach dem Sortieren. Du kannst auch direkt die Laufzeit messen.';
   $('status').textContent = `Bereit: ${input.length} Balken · ${arrangements[$('arrangement').value]}.`;
-  $('stages').classList.toggle('race', race); updateUI();
+  $('stages').classList.toggle('race', race);
+  $('single-selection').hidden = race; $('race-selection').hidden = !race;
+  $('single-mode').setAttribute('aria-pressed', !race); $('race-mode').setAttribute('aria-pressed', race);
+  updateCheckboxes(); updateUI();
 }
 function advance() {
   for (const run of runs) {
@@ -213,7 +404,7 @@ function advance() {
     const next = run.generator.next();
     if (next.done) { run.done = true; run.renderer.finish(performance.now()); continue; }
     const event = next.value; run.event = event; countEvent(run, event); run.renderer.update(event);
-    audio.play(event, run.data, Math.max(...input));
+    audio.play(event, run.data, inputMax);
   }
   if (runs.every(r => r.done)) {
     running = false; audio.finish(); $('status').textContent = 'Fertig sortiert. Vergleiche jetzt den Aufwand in der Rangliste.'; showRanking(); updateUI();
@@ -222,12 +413,18 @@ function advance() {
 function actionText(run) {
   if (run.done) return '✓ Alle Werte sind endgültig einsortiert.';
   const event = run.event; if (!event) return 'Bereit für den ersten Vergleich.';
+  if (event.type === 'compare') {
+    const values = event.values || event.indices.map(i => run.data[i]);
+    return `━ Vergleich · ${values[0]} mit ${values[1]} (Position ${event.indices[0] + 1}${event.values ? ', Referenzwert' : ` und ${event.indices[1] + 1}`})`;
+  }
+  if (event.type === 'pivot') return `▼ Referenzwert: ${event.values?.[0] ?? run.data[event.indices[0]]}`;
   const positions = event.indices.map(i => i + 1).slice(0, 2).join(' und ');
   return `${({ compare: '━ Vergleich', swap: '═ Tausch', write: '═ Schreiben', pivot: '▼ Referenz', fixed: '· Endgültig einsortiert', auxiliary: '═ Hilfsfeld schreiben' })[event.type]}${positions ? ` · Position ${positions}` : ''}`;
 }
 function updateUI() {
   $('play').textContent = running ? 'Ⅱ Pause' : runs.every(r => r.done) ? '↻ Noch einmal' : '▶ Start';
-  $('step').disabled = running || runs.every(r => r.done);
+  $('step').disabled = running || !!measurement || runs.every(r => r.done);
+  $('play').disabled = !!measurement;
   for (const run of runs) {
     run.section.querySelector('.compare-count').textContent = format(run.comparisons);
     run.section.querySelector('.write-count').textContent = format(run.writes);
@@ -236,11 +433,48 @@ function updateUI() {
     run.renderer.canvas.setAttribute('aria-label', `${info[run.id].name}: ${actionText(run)} ${format(run.comparisons)} Vergleiche, ${format(run.writes)} Schreiboperationen.`);
   }
 }
-function showRanking() {
-  const sorted = [...runs].sort((a, b) => a.comparisons + a.writes - b.comparisons - b.writes);
+function showRanking(records = runs) {
+  const sorted = [...records].sort((a, b) => a.comparisons + a.writes - b.comparisons - b.writes);
   const max = Math.max(1, ...sorted.map(r => r.comparisons + r.writes));
-  $('results-intro').textContent = 'Weniger Operationen = weniger Arbeit in diesem Modell. Ocker: Vergleiche. Terrakotta: Schreiboperationen.';
-  $('ranking').innerHTML = sorted.map((r, i) => `<div class="rank-row"><span class="rank">${i + 1}</span><span class="rank-name">${info[r.id].name}</span><div class="rank-track" aria-hidden="true"><span class="comparisons" style="width:${r.comparisons / max * 100}%"></span><span class="writes" style="width:${r.writes / max * 100}%"></span></div><span class="rank-total">${format(r.comparisons + r.writes)}<small>Operationen</small></span><span class="rank-time">—<small>noch nicht gemessen</small></span></div>`).join('');
+  $('results-intro').textContent = `${input.length} Balken · ${arrangements[$('arrangement').value]}. Weniger Operationen = weniger Arbeit in diesem Modell. Ocker: Vergleiche. Terrakotta: Schreiben.`;
+  let rank = 0, previous = -1;
+  $('ranking').innerHTML = sorted.map((r, i) => {
+    const total = r.comparisons + r.writes;
+    if (total !== previous) rank = i + 1;
+    previous = total;
+    const measured = benchmarkResults?.find(result => result.id === r.id);
+    return `<div class="rank-row"><span class="rank">${rank}</span><span class="rank-name">${info[r.id].name}</span><div class="rank-track" aria-hidden="true"><span class="comparisons" style="width:${r.comparisons / max * 100}%"></span><span class="writes" style="width:${r.writes / max * 100}%"></span></div><span class="rank-total">${format(total)}<small>${format(r.comparisons)} V / ${format(r.writes)} S</small></span><span class="rank-time">${measured ? `${measured.median.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ms` : '—'}<small>${measured ? 'Median · 5 Läufe' : 'noch nicht gemessen'}</small></span></div>`;
+  }).join('');
+  const tied = sorted.filter(r => r.comparisons + r.writes === sorted[0].comparisons + sorted[0].writes);
+  $('explanation').textContent = tied.length > 1 ? `Gleichstand: ${tied.map(r => info[r.id].name).join(' und ')} brauchen gleich viele Operationen. Die Art der Arbeit und die gemessene Laufzeit können sich trotzdem unterscheiden.` : explainWinner(sorted[0].id, $('arrangement').value, sorted.length);
+}
+function updateCheckboxes() {
+  $('contestants').querySelectorAll('input').forEach(box => {
+    box.checked = selected.includes(box.value);
+    box.disabled = box.checked ? selected.length <= 2 : selected.length >= 4;
+  });
+}
+async function measure() {
+  if (measurement) { measurement.cancel(); measurement = null; return; }
+  running = false; budget = 0; updateUI();
+  const version = generation;
+  $('benchmark').textContent = 'Messung abbrechen';
+  $('benchmark-status').textContent = 'Aufwärmen und fünf Messungen ohne Animation …';
+  $('status').textContent = 'Animation pausiert für die Laufzeitmessung.';
+  try {
+    measurement = runBenchmark(input, runs.map(r => r.id), progress => {
+      $('benchmark-status').textContent = progress === 1 ? 'Aufwärmlauf abgeschlossen. Fünf Messungen folgen …' : `Messung ${progress - 1} von 5 abgeschlossen …`;
+    });
+    updateUI();
+    const result = await measurement.promise;
+    if (version !== generation) return;
+    benchmarkResults = result;
+    if (version !== generation) return;
+    showRanking(benchmarkResults);
+    const fastest = [...benchmarkResults].sort((a, b) => a.median - b.median)[0];
+    $('benchmark-status').textContent = `Gemessen: ${info[fastest.id].name} hat hier den kleinsten Laufzeit-Median. Kleine Unterschiede können Messrauschen sein. V = Vergleiche, S = Schreiboperationen.`;
+  } catch (error) { if (version === generation) $('benchmark-status').textContent = error.message; }
+  finally { if (version === generation) { measurement = null; $('benchmark').textContent = 'Laufzeit messen ↗'; updateUI(); } }
 }
 function frame(now) {
   const dt = Math.min(50, now - (lastFrame || now)); lastFrame = now;
@@ -248,8 +482,7 @@ function frame(now) {
     budget = Math.min(12000, budget + rate() * dt / 1000); const end = performance.now() + 5;
     while (budget >= 1 && running && performance.now() < end) { advance(); budget--; }
   }
-  const max = Math.max(...input);
-  runs.forEach(r => r.renderer.draw(r.data, max, now, rate() > 1500));
+  runs.forEach(r => r.renderer.draw(r.data, inputMax, now, running && rate() > 1500));
   if (now - lastUI > 100) { updateUI(); lastUI = now; }
   requestAnimationFrame(frame);
 }
@@ -257,7 +490,7 @@ Object.entries(info).forEach(([id, item]) => {
   $('algorithm').add(new Option(item.name, id));
   const button = document.createElement('button'); button.textContent = item.name; button.dataset.id = id; button.addEventListener('click', () => showInfo(id)); $('info-nav').append(button);
 });
-$('play').addEventListener('click', () => { if (runs.every(r => r.done)) buildRuns(); running = !running; budget = 0; $('status').textContent = running ? 'Sortierung läuft.' : 'Pausiert. Du kannst einzelne Schritte ansehen.'; updateUI(); });
+$('play').addEventListener('click', () => { if (measurement) return; if (runs.every(r => r.done)) buildRuns(); running = !running; budget = 0; $('status').textContent = running ? 'Sortierung läuft.' : 'Pausiert. Du kannst einzelne Schritte ansehen.'; updateUI(); });
 $('step').addEventListener('click', () => { advance(); updateUI(); });
 $('reset').addEventListener('click', () => buildRuns());
 $('shuffle').addEventListener('click', () => buildRuns(true));
@@ -269,8 +502,23 @@ $('speed').addEventListener('input', () => { $('speed-label').value = `${format(
 $('sound').addEventListener('click', async () => { try { const enabled = await audio.toggle(); $('sound').textContent = enabled ? 'Ton an' : 'Ton aus'; $('sound').setAttribute('aria-pressed', enabled); } catch (e) { $('status').textContent = e.message; } });
 $('volume').addEventListener('input', () => audio.setVolume(Number($('volume').value) / 100));
 $('single-mode').addEventListener('click', () => { race = false; buildRuns(); });
-$('race-mode').addEventListener('click', () => { $('status').textContent = 'Der Vergleichsmodus folgt im nächsten Umsetzungsschritt.'; });
-$('benchmark').disabled = true; $('challenge-button').disabled = true;
+$('race-mode').addEventListener('click', () => { race = true; buildRuns(); });
+Object.entries(info).forEach(([id, item]) => {
+  const label = document.createElement('label');
+  const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = id;
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) selected.push(id); else selected = selected.filter(value => value !== id);
+    buildRuns();
+  });
+  label.append(checkbox, item.name); $('contestants').append(label);
+});
+$('benchmark').addEventListener('click', measure);
+$('challenge-button').addEventListener('click', () => {
+  selected = ['insertion', 'selection']; race = true; $('arrangement').value = 'nearly';
+  buildRuns(true); showInfo('insertion'); $('labor').scrollIntoView({ behavior: motionPreference.matches ? 'auto' : 'smooth' });
+});
+// Lehrkräfte können die ausgewählte Steuerung mit Tab erreichen; kein globaler Space-Handler.
+document.addEventListener('visibilitychange', () => { if (document.hidden && running) { running = false; budget = 0; $('status').textContent = 'Pausiert, weil das Fenster im Hintergrund ist.'; updateUI(); } });
 showInfo('bubble'); buildRuns(true); $('speed-label').value = `${format(rate())} Schritte/s`; requestAnimationFrame(frame);
 
 }

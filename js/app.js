@@ -13,7 +13,7 @@ const format = number => number.toLocaleString('de-DE');
 function rate() { return Math.round(Math.pow(200000, Number($('speed').value) / 100)); }
 function showInfo(id) {
   const item = info[id];
-  $('info-detail').innerHTML = `<h3>${item.name}</h3><p>${item.idea}</p><dl class="properties"><div><dt>Bester Fall</dt><dd>${item.best}</dd></div><div><dt>Durchschnitt</dt><dd>${item.average}</dd></div><div><dt>Schlechtester Fall</dt><dd>${item.worst}</dd></div><div><dt>Zusatzspeicher</dt><dd>${item.memory}</dd></div><div><dt>Stabil (gleiche bleiben in Reihenfolge)</dt><dd>${item.stable ? 'Ja' : 'Nein'}</dd></div><div><dt>In-place (im vorhandenen Feld)</dt><dd>${item.inplace ? 'Ja' : 'Nein'}</dd></div></dl><div class="info-bottom"><div><h4>Pseudocode · die Idee als Schritte</h4><pre></pre></div><div><h4>Wann lohnt sich das?</h4><p>${item.use}</p></div></div>`;
+  $('info-detail').innerHTML = `<h3>${item.name}</h3><p>${item.idea}</p><p class="notation-note">n ist die Zahl der Werte. Die O-Notation beschreibt, wie der Aufwand mit der Listengröße wächst; z. B. wächst O(n²) quadratisch. Die genauen Begriffe erklärt das Glossar unten.</p><dl class="properties"><div><dt>Bester Fall</dt><dd>${item.best}</dd></div><div><dt>Durchschnitt</dt><dd>${item.average}</dd></div><div><dt>Schlechtester Fall</dt><dd>${item.worst}</dd></div><div><dt>Zusatzspeicher</dt><dd>${item.memory}</dd></div><div><dt>Stabil (gleiche bleiben in Reihenfolge)</dt><dd>${item.stable ? 'Ja' : 'Nein'}</dd></div><div><dt>In-place (im vorhandenen Feld)</dt><dd>${item.inplace ? 'Ja' : 'Nein'}</dd></div></dl><div class="info-bottom"><div><h4>Pseudocode · vereinfachte Schrittbeschreibung</h4><pre></pre></div><div><h4>Wann lohnt sich das?</h4><p>${item.use}</p></div></div>`;
   $('info-detail').querySelector('pre').textContent = item.code;
   $('info-nav').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
 }
@@ -114,7 +114,7 @@ async function measure() {
     benchmarkResults = result;
     showRanking(benchmarkResults);
     const fastest = [...benchmarkResults].sort((a, b) => a.median - b.median)[0];
-    $('benchmark-status').textContent = `Gemessen: ${info[fastest.id].name} hat hier den kleinsten Laufzeit-Median. Kleine Unterschiede können Messrauschen sein. V = Vergleiche, S = Schreiboperationen.`;
+    $('benchmark-status').textContent = `Gemessen: ${info[fastest.id].name} hat hier den kleinsten Laufzeit-Median. Median = mittlerer von fünf Messwerten. Kleine Unterschiede können Messrauschen sein. V = Vergleiche, S = Schreiboperationen.`;
   } catch (error) { if (version === generation) $('benchmark-status').textContent = error.message; }
   finally { if (version === generation) { measurement = null; $('benchmark').textContent = 'Laufzeit messen ↗'; updateUI(); } }
 }

@@ -29,7 +29,8 @@ export class SortAudio {
     if (!this.enabled || !['compare', 'swap', 'write'].includes(event.type)) return;
     // Höchstens 25 Tonpaare pro Sekunde, auch bei sehr vielen Schritten.
     const now = this.context.currentTime; if (now - this.last < 0.04) return; this.last = now;
-    event.indices.slice(0, 2).forEach((i, k) => this.tone(event.values?.[k] ?? data[i], max));
+    const heights = event.values || event.indices.map(i => data[i]);
+    heights.slice(0, 2).forEach(height => this.tone(height, max));
   }
   finish() { [0.25, 0.5, 0.75].forEach((v, i) => this.tone(v, 1, i * 0.11, 0.22)); }
 }

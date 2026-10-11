@@ -8,7 +8,7 @@ function benchmarkWorker() {
         for (const id of ids) {
           const a = input.slice(); let comparisons = 0, writes = 0;
           const start = performance.now();
-          for (const event of algorithms[id](a)) { comparisons += event.comparisons || 0; writes += event.writes || 0; }
+          for (const event of algorithms[id](a, input.length)) { comparisons += event.comparisons || 0; writes += event.writes || 0; }
           const elapsed = performance.now() - start;
           if (round === -1) results.push({ id, times: [], comparisons, writes });
           else results.find(r => r.id === id).times.push(elapsed);

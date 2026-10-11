@@ -25,7 +25,7 @@ class Element {
     return this.children.flatMap(e => [ ...(match(e) ? [e] : []), ...e.querySelectorAll(selector) ]);
   }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
-  getContext() { return { setTransform() {}, clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fillRect() {}, fill() {} }; }
+  getContext() { return { setTransform() {}, setLineDash() {}, clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fillRect() {}, fill() {} }; }
   getBoundingClientRect() { return { width: 800, height: 285 }; }
   scrollIntoView() {}
 }

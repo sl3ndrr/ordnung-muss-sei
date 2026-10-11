@@ -36,7 +36,7 @@ globalThis.devicePixelRatio = 2;
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 let rectangles = 0;
 const context = {
-  setTransform() {}, clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
+  setTransform() {}, setLineDash() {}, clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
   fillRect(x, y, w, h) { assert.ok([x, y, w, h].every(Number.isFinite)); assert.ok(w > 0 && h > 0); rectangles++; }
 };
 const canvas = { getContext: () => context, getBoundingClientRect: () => ({ width: 600, height: 280 }) };

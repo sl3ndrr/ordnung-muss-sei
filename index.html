@@ -36,7 +36,7 @@ if (location.protocol !== 'file:') {
 // ----- js/algorithms.js -----
 // Ein Ereignis ist genau eine sichtbare Aktion. Ein Tausch schreibt zweimal.
 function compare(i, j, values) {
-  return { type: 'compare', indices: [i, j], values, comparisons: 1, writes: 0 };
+  return { type: 'compare', indices: [i, j].filter(index => index !== null), values, comparisons: 1, writes: 0 };
 }
 function* swap(a, i, j) {
   if (i === j) return;
@@ -64,12 +64,12 @@ function* bubble(a) {
 function* selection(a) {
   for (let start = 0; start < a.length - 1; start++) {
     let smallest = start;
-    yield { type: 'pivot', indices: [smallest] };
+    yield { type: 'pivot', indices: [smallest], values: [a[smallest]] };
     // Das Minimum im Rest suchen; danach nur einen Tausch durchführen.
     for (let j = start + 1; j < a.length; j++) {
       yield compare(smallest, j);
       if (a[j] < a[smallest]) {
-        smallest = j; yield { type: 'pivot', indices: [smallest] };
+        smallest = j; yield { type: 'pivot', indices: [smallest], values: [a[smallest]] };
       }
     }
     yield* swap(a, start, smallest); yield fixed([start]);
@@ -82,7 +82,7 @@ function* insertion(a) {
     yield { type: 'pivot', indices: [i], values: [key] };
     // Links ist bereits eine geordnete Teilfolge. Platz für key schaffen.
     while (j >= 0) {
-      yield compare(j, i, [a[j], key]);
+      yield compare(j, null, [a[j], key]);
       if (a[j] <= key) break;
       yield write(a, j + 1, a[j]); j--;
     }
@@ -100,8 +100,9 @@ function* merge(a) {
     // Zwei geordnete Hälften: jeweils den kleineren Kopf ins Hilfsfeld nehmen.
     while (left < mid && right < hi) {
       yield compare(left, right);
-      buffer.push(a[left] <= a[right] ? a[left++] : a[right++]);
-      yield { type: 'auxiliary', indices: [left - 1, right - 1].filter(i => i >= lo), writes: 1 };
+      const chosen = a[left] <= a[right] ? left++ : right++;
+      buffer.push(a[chosen]);
+      yield { type: 'auxiliary', indices: [chosen], writes: 1 };
     }
     while (left < mid) { buffer.push(a[left]); yield { type: 'auxiliary', indices: [left++], writes: 1 }; }
     while (right < hi) { buffer.push(a[right]); yield { type: 'auxiliary', indices: [right++], writes: 1 }; }
@@ -118,10 +119,10 @@ function* quick(a) {
     let less = lo, scan = lo, greater = hi;
     // Drei Bereiche: kleiner, gleich, größer. Gleiche Werte werden nicht erneut sortiert.
     while (scan <= greater) {
-      yield compare(scan, pivotIndex, [a[scan], pivot]);
+      yield compare(scan, null, [a[scan], pivot]);
       if (a[scan] < pivot) { yield* swap(a, less++, scan++); }
       else {
-        yield compare(scan, pivotIndex, [a[scan], pivot]);
+        yield compare(scan, null, [a[scan], pivot]);
         if (a[scan] > pivot) { yield* swap(a, scan, greater--); }
         else scan++;
       }
@@ -157,7 +158,7 @@ function* shell(a) {
       const key = a[i]; let j = i;
       yield { type: 'pivot', indices: [i], values: [key] };
       while (j >= gap) {
-        yield compare(j - gap, i, [a[j - gap], key]);
+        yield compare(j - gap, null, [a[j - gap], key]);
         if (a[j - gap] <= key) break;
         yield write(a, j, a[j - gap]); j -= gap;
       }
@@ -166,9 +167,11 @@ function* shell(a) {
   }
   yield fixed(Array.from(a.keys()));
 }
-function* counting(a) {
+function* counting(a, maxValue = 1000) {
   if (!a.length) return;
-  const max = Math.max(...a), counts = new Array(max + 1), output = new Array(a.length);
+  // Die Oberfläche kennt den Wertebereich 0…n schon aus der Datenerzeugung.
+  // Der Standardbereich 0…1000 erlaubt die direkte Nutzung im Unterrichtstest.
+  const max = maxValue, counts = new Array(max + 1), output = new Array(a.length);
   // k mögliche Höhen: erst Häufigkeiten, dann die Endposition jeder Höhe berechnen.
   for (let v = 0; v <= max; v++) { counts[v] = 0; yield { type: 'auxiliary', indices: [], writes: 1 }; }
   for (let i = 0; i < a.length; i++) { counts[a[i]]++; yield { type: 'auxiliary', indices: [i], writes: 1 }; }
@@ -215,7 +218,7 @@ class Experiment {
   constructor(input, ids) {
     this.runs = ids.map(id => {
       const data = input.slice();
-      return { id, data, generator: algorithms[id](data), comparisons: 0, writes: 0, event: null, done: false };
+      return { id, data, generator: algorithms[id](data, input.length), comparisons: 0, writes: 0, event: null, done: false };
     });
   }
   step() {
@@ -237,7 +240,7 @@ const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 class BarRenderer {
   constructor(canvas, data) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.shown = Float32Array.from(data);
-    this.fixed = new Set(); this.event = null; this.finishedAt = null; this.lastTime = 0; this.dirty = true; this.animateUntil = 0;
+    this.fixed = new Set(); this.reference = null; this.event = null; this.finishedAt = null; this.lastTime = 0; this.dirty = true; this.animateUntil = 0;
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas); this.resize();
   }
   resize() {
@@ -247,7 +250,11 @@ class BarRenderer {
     this.canvas.width = Math.round(bounds.width * dpr); this.canvas.height = Math.round(bounds.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  update(event) { this.event = event; this.dirty = true; this.animateUntil = performance.now() + 600; if (event.type === 'fixed') event.indices.forEach(i => this.fixed.add(i)); }
+  update(event) {
+    this.event = event; this.dirty = true; this.animateUntil = performance.now() + 600;
+    if (event.type === 'pivot') this.reference = event.values?.[0] ?? null;
+    if (event.type === 'fixed') { event.indices.forEach(i => this.fixed.add(i)); this.reference = null; }
+  }
   finish(now) { this.finishedAt = now; this.dirty = true; this.animateUntil = now + 800; }
   draw(data, max, now, fast = false) {
     const { ctx, width: w, height: h, dpr } = this; if (!w || !h) return;
@@ -257,6 +264,12 @@ class BarRenderer {
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = '#dedbd0'; ctx.lineWidth = 1;
     for (const fraction of [0.25, 0.5, 0.75]) { const y = h - 20 - fraction * (h - 44); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    // Ein gemerkter Referenzwert bleibt sichtbar, auch wenn sein ursprünglicher Platz überschrieben wird.
+    if (this.reference !== null && this.finishedAt === null) {
+      const y = h - 20 - (this.reference / max) * (h - 44);
+      ctx.strokeStyle = '#8f9184'; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#262820'; ctx.beginPath(); ctx.moveTo(0, y - 4); ctx.lineTo(6, y); ctx.lineTo(0, y + 4); ctx.fill();
+    }
     const step = w / data.length, gap = data.length > 300 ? 0 : Math.min(2, step * 0.2);
     const active = new Set(this.event?.indices || []);
     const snap = value => Math.round(value * dpr) / dpr;
@@ -326,7 +339,8 @@ class SortAudio {
     if (!this.enabled || !['compare', 'swap', 'write'].includes(event.type)) return;
     // Höchstens 25 Tonpaare pro Sekunde, auch bei sehr vielen Schritten.
     const now = this.context.currentTime; if (now - this.last < 0.04) return; this.last = now;
-    event.indices.slice(0, 2).forEach((i, k) => this.tone(event.values?.[k] ?? data[i], max));
+    const heights = event.values || event.indices.map(i => data[i]);
+    heights.slice(0, 2).forEach(height => this.tone(height, max));
   }
   finish() { [0.25, 0.5, 0.75].forEach((v, i) => this.tone(v, 1, i * 0.11, 0.22)); }
 }
@@ -337,7 +351,7 @@ const info = {
   selection: { name: 'Selection Sort', short: 'Das Minimum suchen', idea: 'Suche den kleinsten Wert im noch unsortierten Teil. Tausche ihn an den Anfang dieses Teils. Wiederhole das, bis jeder Platz besetzt ist.', best: 'O(n²)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: false, inplace: true, use: 'Braucht nur wenige Tausche, aber immer viele Vergleiche. Sinnvoll, wenn Schreiben teuer ist; fast sortierte Daten helfen ihm kaum, anders als Insertion Sort.', code: 'für jede Position i:\n  suche den kleinsten Wert ab i\n  tausche ihn mit dem Wert an i\n  markiere i als endgültig' },
   insertion: { name: 'Insertion Sort', short: 'Die richtige Lücke finden', idea: 'Wie beim Ordnen von Spielkarten nimmst du einen neuen Wert und schiebst ihn an die passende Stelle. Größere Werte rücken nach rechts. Der linke Teil ist dabei immer geordnet, aber noch nicht endgültig.', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', memory: 'O(1)', stable: true, inplace: true, use: 'Sehr gut für kleine oder fast sortierte Listen. Umgekehrte Reihenfolge erzwingt viele Verschiebungen; dort sind Merge Sort und Heap Sort verlässlicher.', code: 'für jeden Wert ab Position 2:\n  merke den Wert\n  schiebe größere linke Nachbarn nach rechts\n  setze den Wert in die entstandene Lücke' },
   merge: { name: 'Merge Sort', short: 'Teilen und zusammenführen', idea: 'Halbiere die Liste immer weiter, bis einzelne Werte übrig bleiben. Führe dann jeweils zwei geordnete Teile zusammen, indem du den kleineren vorderen Wert auswählst. Ein Hilfsfeld bewahrt die Werte beim Zusammenführen auf.', best: 'O(n log n)', average: 'O(n log n)', worst: 'O(n log n)', memory: 'O(n)', stable: true, inplace: false, use: 'Gleichmäßig gut für große Listen und wenn gleiche Werte ihre Reihenfolge behalten sollen. Benötigt mehr Zusatzspeicher und Hilfsfeld-Schreibzugriffe als Heap Sort.', code: 'wenn Teil kleiner als 2: fertig\n  sortiere linke und rechte Hälfte\n  nimm jeweils den kleineren vorderen Wert\n  schreibe das Hilfsfeld zurück' },
-  quick: { name: 'Quick Sort', short: 'Um eine Referenz aufteilen', idea: 'Wähle einen Referenzwert, das Pivot. Teile die Liste in kleinere, gleiche und größere Werte auf. Sortiere danach die kleineren und größeren Teile; gleiche Werte sind bereits am richtigen Platz.', best: 'O(n log n)', average: 'O(n log n)', worst: 'O(n²)', memory: 'Ø O(log n), max. O(n)', stable: false, inplace: true, use: 'Oft schnell auf gemischten Daten. Unsere Drei-Wege-Variante hilft bei Duplikaten (nur gleiche Werte: O(n)); ungünstige Pivots können sie ausbremsen. Heap Sort garantiert O(n log n).', code: 'wähle mittleren Wert als Pivot\n  teile in kleiner | gleich | größer\n  sortiere den kleineren Teil\n  sortiere den größeren Teil' },
+  quick: { name: 'Quick Sort', short: 'Um eine Referenz aufteilen', idea: 'Wähle einen Referenzwert, das Pivot. Teile die Liste in kleinere, gleiche und größere Werte auf. Sortiere danach die kleineren und größeren Teile; gleiche Werte sind bereits am richtigen Platz.', best: 'O(n)*', average: 'O(n log n)', worst: 'O(n²)', memory: 'Ø O(log n), max. O(n)', stable: false, inplace: true, use: 'Oft schnell auf gemischten Daten. Unsere Drei-Wege-Variante hilft bei Duplikaten; ungünstige Pivots können sie ausbremsen. *Nur gleiche Werte: O(n), unterschiedliche Werte im besten Fall O(n log n). Heap Sort garantiert O(n log n).', code: 'wähle mittleren Wert als Pivot\n  teile in kleiner | gleich | größer\n  sortiere den kleineren Teil\n  sortiere den größeren Teil' },
   heap: { name: 'Heap Sort', short: 'Das Größte nach oben', idea: 'Ordne die Werte wie einen Baum, bei dem Eltern mindestens so groß wie ihre Kinder sind: einen Heap. Der größte Wert steht dann vorn und kommt ans Ende. Stelle die Baumordnung im Rest wieder her und wiederhole das.', best: 'O(n)*', average: 'O(n log n)', worst: 'O(n log n)', memory: 'O(1)', stable: false, inplace: true, use: 'Zuverlässig ohne großes Hilfsfeld und ohne quadratischen schlechtesten Fall. Die weiten Sprünge sind schwerer zu verfolgen als bei Insertion Sort. *Diese Variante ist bei lauter gleichen Werten linear; bei verschiedenen Werten auch im besten Fall O(n log n).', code: 'baue einen Heap mit größtem Wert vorn\n  tausche den vorderen Wert ans Ende\n  verkleinere den Heap\n  lasse den neuen Kopf an die passende Stelle sinken' },
   shell: { name: 'Shell Sort', short: 'Erst weit, dann nah', idea: 'Sortiere zunächst Werte, die weit auseinander stehen, wie bei Insertion Sort. Verkleinere den Abstand nach und nach. Beim letzten Abstand von eins sind viele Werte schon nahe an ihrem Ziel.', best: 'O(n log n)', average: 'Abhängig von Daten & Abständen', worst: 'O(n√n)', memory: 'O(1)', stable: false, inplace: true, use: 'Ein kompakter Mittelweg zwischen Insertion Sort und aufwendigeren Verfahren. Hier nutzen wir Knuth-Abstände 1, 4, 13, 40, …; für sie ist keine einfache allgemeine Durchschnittsformel bekannt.', code: 'für Abstände … 40, 13, 4, 1:\n  für jeden Wert mit diesem Abstand:\n    schiebe größere Vorgänger weiter\n    setze den Wert in die Lücke' },
   counting: { name: 'Counting Sort', short: 'Häufigkeiten zählen', idea: 'Zähle, wie oft jede ganze Höhe vorkommt. Berechne daraus die Zielplätze und setze die Werte dort ein. Es werden keine zwei Balkenhöhen miteinander verglichen; stattdessen wird mit Häufigkeiten gerechnet.', best: 'O(n + k)', average: 'O(n + k)', worst: 'O(n + k)', memory: 'O(n + k)', stable: true, inplace: false, use: 'Gut für ganze Zahlen in einem kleinen Wertebereich: k ist die Zahl möglicher Höhen. Bei riesigen Wertebereichen oder beliebigen Texten sind vergleichsbasierte Verfahren wie Merge Sort sinnvoller.', code: 'zähle jede Höhe in einem Hilfsfeld\n  berechne aus den Summen die Zielplätze\n  setze Werte von rechts ins Ausgabefeld\n  schreibe das Ausgabefeld zurück' }
@@ -366,7 +380,7 @@ function benchmarkWorker() {
         for (const id of ids) {
           const a = input.slice(); let comparisons = 0, writes = 0;
           const start = performance.now();
-          for (const event of algorithms[id](a)) { comparisons += event.comparisons || 0; writes += event.writes || 0; }
+          for (const event of algorithms[id](a, input.length)) { comparisons += event.comparisons || 0; writes += event.writes || 0; }
           const elapsed = performance.now() - start;
           if (round === -1) results.push({ id, times: [], comparisons, writes });
           else results.find(r => r.id === id).times.push(elapsed);
@@ -410,7 +424,7 @@ const format = number => number.toLocaleString('de-DE');
 function rate() { return Math.round(Math.pow(200000, Number($('speed').value) / 100)); }
 function showInfo(id) {
   const item = info[id];
-  $('info-detail').innerHTML = `<h3>${item.name}</h3><p>${item.idea}</p><dl class="properties"><div><dt>Bester Fall</dt><dd>${item.best}</dd></div><div><dt>Durchschnitt</dt><dd>${item.average}</dd></div><div><dt>Schlechtester Fall</dt><dd>${item.worst}</dd></div><div><dt>Zusatzspeicher</dt><dd>${item.memory}</dd></div><div><dt>Stabil (gleiche bleiben in Reihenfolge)</dt><dd>${item.stable ? 'Ja' : 'Nein'}</dd></div><div><dt>In-place (im vorhandenen Feld)</dt><dd>${item.inplace ? 'Ja' : 'Nein'}</dd></div></dl><div class="info-bottom"><div><h4>Pseudocode · die Idee als Schritte</h4><pre></pre></div><div><h4>Wann lohnt sich das?</h4><p>${item.use}</p></div></div>`;
+  $('info-detail').innerHTML = `<h3>${item.name}</h3><p>${item.idea}</p><p class="notation-note">n ist die Zahl der Werte. Die O-Notation beschreibt, wie der Aufwand mit der Listengröße wächst; z. B. wächst O(n²) quadratisch. Die genauen Begriffe erklärt das Glossar unten.</p><dl class="properties"><div><dt>Bester Fall</dt><dd>${item.best}</dd></div><div><dt>Durchschnitt</dt><dd>${item.average}</dd></div><div><dt>Schlechtester Fall</dt><dd>${item.worst}</dd></div><div><dt>Zusatzspeicher</dt><dd>${item.memory}</dd></div><div><dt>Stabil (gleiche bleiben in Reihenfolge)</dt><dd>${item.stable ? 'Ja' : 'Nein'}</dd></div><div><dt>In-place (im vorhandenen Feld)</dt><dd>${item.inplace ? 'Ja' : 'Nein'}</dd></div></dl><div class="info-bottom"><div><h4>Pseudocode · vereinfachte Schrittbeschreibung</h4><pre></pre></div><div><h4>Wann lohnt sich das?</h4><p>${item.use}</p></div></div>`;
   $('info-detail').querySelector('pre').textContent = item.code;
   $('info-nav').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
 }
@@ -511,7 +525,7 @@ async function measure() {
     benchmarkResults = result;
     showRanking(benchmarkResults);
     const fastest = [...benchmarkResults].sort((a, b) => a.median - b.median)[0];
-    $('benchmark-status').textContent = `Gemessen: ${info[fastest.id].name} hat hier den kleinsten Laufzeit-Median. Kleine Unterschiede können Messrauschen sein. V = Vergleiche, S = Schreiboperationen.`;
+    $('benchmark-status').textContent = `Gemessen: ${info[fastest.id].name} hat hier den kleinsten Laufzeit-Median. Median = mittlerer von fünf Messwerten. Kleine Unterschiede können Messrauschen sein. V = Vergleiche, S = Schreiboperationen.`;
   } catch (error) { if (version === generation) $('benchmark-status').textContent = error.message; }
   finally { if (version === generation) { measurement = null; $('benchmark').textContent = 'Laufzeit messen ↗'; updateUI(); } }
 }

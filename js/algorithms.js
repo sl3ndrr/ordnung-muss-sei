@@ -1,6 +1,6 @@
 // Ein Ereignis ist genau eine sichtbare Aktion. Ein Tausch schreibt zweimal.
 export function compare(i, j, values) {
-  return { type: 'compare', indices: [i, j], values, comparisons: 1, writes: 0 };
+  return { type: 'compare', indices: [i, j].filter(index => index !== null), values, comparisons: 1, writes: 0 };
 }
 export function* swap(a, i, j) {
   if (i === j) return;
@@ -28,12 +28,12 @@ export function* bubble(a) {
 export function* selection(a) {
   for (let start = 0; start < a.length - 1; start++) {
     let smallest = start;
-    yield { type: 'pivot', indices: [smallest] };
+    yield { type: 'pivot', indices: [smallest], values: [a[smallest]] };
     // Das Minimum im Rest suchen; danach nur einen Tausch durchführen.
     for (let j = start + 1; j < a.length; j++) {
       yield compare(smallest, j);
       if (a[j] < a[smallest]) {
-        smallest = j; yield { type: 'pivot', indices: [smallest] };
+        smallest = j; yield { type: 'pivot', indices: [smallest], values: [a[smallest]] };
       }
     }
     yield* swap(a, start, smallest); yield fixed([start]);
@@ -46,7 +46,7 @@ export function* insertion(a) {
     yield { type: 'pivot', indices: [i], values: [key] };
     // Links ist bereits eine geordnete Teilfolge. Platz für key schaffen.
     while (j >= 0) {
-      yield compare(j, i, [a[j], key]);
+      yield compare(j, null, [a[j], key]);
       if (a[j] <= key) break;
       yield write(a, j + 1, a[j]); j--;
     }
@@ -64,8 +64,9 @@ export function* merge(a) {
     // Zwei geordnete Hälften: jeweils den kleineren Kopf ins Hilfsfeld nehmen.
     while (left < mid && right < hi) {
       yield compare(left, right);
-      buffer.push(a[left] <= a[right] ? a[left++] : a[right++]);
-      yield { type: 'auxiliary', indices: [left - 1, right - 1].filter(i => i >= lo), writes: 1 };
+      const chosen = a[left] <= a[right] ? left++ : right++;
+      buffer.push(a[chosen]);
+      yield { type: 'auxiliary', indices: [chosen], writes: 1 };
     }
     while (left < mid) { buffer.push(a[left]); yield { type: 'auxiliary', indices: [left++], writes: 1 }; }
     while (right < hi) { buffer.push(a[right]); yield { type: 'auxiliary', indices: [right++], writes: 1 }; }
@@ -82,10 +83,10 @@ export function* quick(a) {
     let less = lo, scan = lo, greater = hi;
     // Drei Bereiche: kleiner, gleich, größer. Gleiche Werte werden nicht erneut sortiert.
     while (scan <= greater) {
-      yield compare(scan, pivotIndex, [a[scan], pivot]);
+      yield compare(scan, null, [a[scan], pivot]);
       if (a[scan] < pivot) { yield* swap(a, less++, scan++); }
       else {
-        yield compare(scan, pivotIndex, [a[scan], pivot]);
+        yield compare(scan, null, [a[scan], pivot]);
         if (a[scan] > pivot) { yield* swap(a, scan, greater--); }
         else scan++;
       }
@@ -121,7 +122,7 @@ export function* shell(a) {
       const key = a[i]; let j = i;
       yield { type: 'pivot', indices: [i], values: [key] };
       while (j >= gap) {
-        yield compare(j - gap, i, [a[j - gap], key]);
+        yield compare(j - gap, null, [a[j - gap], key]);
         if (a[j - gap] <= key) break;
         yield write(a, j, a[j - gap]); j -= gap;
       }
@@ -130,9 +131,11 @@ export function* shell(a) {
   }
   yield fixed(Array.from(a.keys()));
 }
-export function* counting(a) {
+export function* counting(a, maxValue = 1000) {
   if (!a.length) return;
-  const max = Math.max(...a), counts = new Array(max + 1), output = new Array(a.length);
+  // Die Oberfläche kennt den Wertebereich 0…n schon aus der Datenerzeugung.
+  // Der Standardbereich 0…1000 erlaubt die direkte Nutzung im Unterrichtstest.
+  const max = maxValue, counts = new Array(max + 1), output = new Array(a.length);
   // k mögliche Höhen: erst Häufigkeiten, dann die Endposition jeder Höhe berechnen.
   for (let v = 0; v <= max; v++) { counts[v] = 0; yield { type: 'auxiliary', indices: [], writes: 1 }; }
   for (let i = 0; i < a.length; i++) { counts[a[i]]++; yield { type: 'auxiliary', indices: [i], writes: 1 }; }

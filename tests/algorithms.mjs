@@ -31,11 +31,12 @@ for (const name of ['bubble', 'insertion', 'merge', 'counting']) {
   for (const event of algorithms[name](a)) { /* Generator vollständig ausführen. */ }
   for (const value of [1, 2, 3]) assert.deepEqual(a.filter(x => x.value === value).map(x => x.id), values.flatMap((v, i) => v === value ? [i] : []), `${name}: nicht stabil`);
 }
-const count = (id, a) => { const t = { comparisons: 0, writes: 0 }; for (const e of algorithms[id](a)) countEvent(t, e); return t; };
+const count = (id, a, maxValue) => { const t = { comparisons: 0, writes: 0 }; for (const e of algorithms[id](a, maxValue)) countEvent(t, e); return t; };
 assert.deepEqual(count('bubble', [2, 1]), { comparisons: 1, writes: 2 });
 assert.deepEqual(count('insertion', [2, 1]), { comparisons: 1, writes: 2 });
 assert.deepEqual(count('selection', [3, 2, 1]), { comparisons: 3, writes: 2 });
 assert.deepEqual(count('merge', [2, 1]), { comparisons: 1, writes: 4 });
+assert.deepEqual(count('counting', [2, 1], 2), { comparisons: 0, writes: 13 });
 for (const n of [20, 100, 1000]) {
   assert.equal(count('insertion', Array.from({ length: n }, (_, i) => i)).comparisons, n - 1);
   assert.equal(count('selection', Array.from({ length: n }, (_, i) => i)).comparisons, n * (n - 1) / 2);

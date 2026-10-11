@@ -4,7 +4,7 @@ export class Experiment {
   constructor(input, ids) {
     this.runs = ids.map(id => {
       const data = input.slice();
-      return { id, data, generator: algorithms[id](data), comparisons: 0, writes: 0, event: null, done: false };
+      return { id, data, generator: algorithms[id](data, input.length), comparisons: 0, writes: 0, event: null, done: false };
     });
   }
   step() {

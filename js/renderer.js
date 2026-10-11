@@ -2,7 +2,7 @@ export const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 export class BarRenderer {
   constructor(canvas, data) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.shown = Float32Array.from(data);
-    this.fixed = new Set(); this.event = null; this.finishedAt = null; this.lastTime = 0; this.dirty = true; this.animateUntil = 0;
+    this.fixed = new Set(); this.reference = null; this.event = null; this.finishedAt = null; this.lastTime = 0; this.dirty = true; this.animateUntil = 0;
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas); this.resize();
   }
   resize() {
@@ -12,7 +12,11 @@ export class BarRenderer {
     this.canvas.width = Math.round(bounds.width * dpr); this.canvas.height = Math.round(bounds.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  update(event) { this.event = event; this.dirty = true; this.animateUntil = performance.now() + 600; if (event.type === 'fixed') event.indices.forEach(i => this.fixed.add(i)); }
+  update(event) {
+    this.event = event; this.dirty = true; this.animateUntil = performance.now() + 600;
+    if (event.type === 'pivot') this.reference = event.values?.[0] ?? null;
+    if (event.type === 'fixed') { event.indices.forEach(i => this.fixed.add(i)); this.reference = null; }
+  }
   finish(now) { this.finishedAt = now; this.dirty = true; this.animateUntil = now + 800; }
   draw(data, max, now, fast = false) {
     const { ctx, width: w, height: h, dpr } = this; if (!w || !h) return;
@@ -22,6 +26,12 @@ export class BarRenderer {
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = '#dedbd0'; ctx.lineWidth = 1;
     for (const fraction of [0.25, 0.5, 0.75]) { const y = h - 20 - fraction * (h - 44); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    // Ein gemerkter Referenzwert bleibt sichtbar, auch wenn sein ursprünglicher Platz überschrieben wird.
+    if (this.reference !== null && this.finishedAt === null) {
+      const y = h - 20 - (this.reference / max) * (h - 44);
+      ctx.strokeStyle = '#8f9184'; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#262820'; ctx.beginPath(); ctx.moveTo(0, y - 4); ctx.lineTo(6, y); ctx.lineTo(0, y + 4); ctx.fill();
+    }
     const step = w / data.length, gap = data.length > 300 ? 0 : Math.min(2, step * 0.2);
     const active = new Set(this.event?.indices || []);
     const snap = value => Math.round(value * dpr) / dpr;
